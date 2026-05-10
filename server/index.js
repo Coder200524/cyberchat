@@ -45,10 +45,9 @@ const allowedOrigins = [
 // ---- Create Socket.IO Server ----
 const io = new Server(server, {
   cors: {
-    origin: allowedOrigins,
-    methods: ['GET', 'POST'],
-    credentials: true,
-  },
+    origin: "https://cyberchat-snowy.vercel.app",
+    methods: ["GET", "POST"]
+  }
 });
 
 // Make the Socket.IO instance available to route handlers
@@ -57,8 +56,8 @@ app.set('io', io);
 // ---- Middleware ----
 app.use(
   cors({
-    origin: allowedOrigins,
-    credentials: true,
+    origin: "https://cyberchat-snowy.vercel.app",
+    credentials: true
   })
 );
 
