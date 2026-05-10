@@ -65,7 +65,7 @@ const SELF_DESTRUCT_MS = 30 * 60 * 1000; // 30 minutes in milliseconds
 const setupSocket = (io) => {
 
   io.on('connection', (socket) => {
-    console.log(`🔌 Socket connected: ${socket.id}`);
+    console.log(`SERVER: 🔌 Socket connected: ${socket.id}`);
 
     // ========================================================
     // EVENT: join-room
@@ -119,7 +119,7 @@ const setupSocket = (io) => {
         // Send updated room activity stats
         await emitRoomActivity(io, roomCode);
 
-        console.log(`👤 ${username} joined room ${roomCode}`);
+        console.log(`SERVER: 👤 Room joined - ${username} joined room ${roomCode}`);
       } catch (error) {
         console.error('CRITICAL join-room error:', error);
       }
@@ -169,6 +169,7 @@ const setupSocket = (io) => {
         // Broadcast the message to everyone in the room
         // io.to(roomCode) = everyone in the room, including the sender
         io.to(roomCode).emit('message-received', messageData);
+        console.log(`SERVER: ✉️ Message emitted to room ${roomCode} by ${user.username}`);
 
         // Update room activity stats
         await emitRoomActivity(io, roomCode);
@@ -297,7 +298,7 @@ const setupSocket = (io) => {
     // or connection is lost
     // ========================================================
     socket.on('disconnect', () => {
-      console.log(`🔌 Socket disconnected: ${socket.id}`);
+      console.log(`SERVER: 🔌 Socket disconnected: ${socket.id}`);
       if (socket.roomCode && socket.userId) {
         handleUserLeave(io, socket, socket.roomCode, socket.userId, socket.username);
       }

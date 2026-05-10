@@ -13,6 +13,16 @@ export const SocketProvider = ({ children }) => {
     if (user) {
       const newSocket = io(import.meta.env.VITE_API_URL, {
         withCredentials: true,
+        transports: ["websocket", "polling"],
+      });
+
+      // Temporary debug logs for frontend
+      newSocket.on('connect', () => {
+        console.log('CLIENT: 🟢 Socket connected! ID:', newSocket.id);
+      });
+
+      newSocket.on('connect_error', (err) => {
+        console.error('CLIENT: 🔴 Socket connection error:', err.message);
       });
 
       setSocket(newSocket);
