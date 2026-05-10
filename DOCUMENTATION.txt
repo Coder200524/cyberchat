@@ -1,0 +1,198 @@
+========================================================================
+CYBERCHAT - BEGINNER DEVELOPMENT GUIDE
+========================================================================
+Welcome to the CyberChat documentation! This file explains step-by-step
+how we built this full-stack application and what each part does.
+
+Our goal: Understand how React, Node.js, Socket.IO, and MongoDB work together.
+
+------------------------------------------------------------------------
+STEP 1: FOLDER STRUCTURE
+------------------------------------------------------------------------
+The project is split into two completely separate folders:
+1. `client/` - This is the FRONTEND. It's built with React and Tailwind CSS.
+   It controls everything the user sees on their screen.
+2. `server/` - This is the BACKEND. It's built with Node.js and Express.
+   It controls the database, the logic, and the real-time connections.
+
+Why separate them?
+Because the frontend runs in the user's browser, while the backend runs
+on a remote server. Keeping the code separate makes it easier to manage.
+
+------------------------------------------------------------------------
+STEP 2: HOW THE BACKEND CONNECTS TO MONGODB (Database)
+------------------------------------------------------------------------
+We use MongoDB Atlas, which is a database in the cloud.
+
+1. Setup Atlas:
+   - Go to https://cloud.mongodb.com and create an account.
+   - Create a free "Cluster" (a place to store your databases).
+   - Go to "Database Access" and create a user with a password.
+   - Go to "Network Access" and add IP "0.0.0.0/0" so your app can connect.
+   - Click "Connect" on your cluster, choose "Drivers", and copy the link.
+   
+2. Connecting our app:
+   - In `server/.env`, we paste that link into MONGODB_URI.
+   - In `server/config/db.js`, we use a tool called "Mongoose" to connect
+     to that link. Mongoose makes it easy to talk to MongoDB using JavaScript.
+
+3. Models (The Blueprints):
+   - In `server/models/`, we have User, Room, and Message files.
+   - Think of these as blueprints. The User model tells MongoDB: "Every user
+     must have a username and a password."
+
+------------------------------------------------------------------------
+STEP 3: AUTHENTICATION (Login & Register)
+------------------------------------------------------------------------
+How do we log users in securely?
+
+1. Registering:
+   - User types password "hello123" on frontend.
+   - Frontend sends it to backend (`server/routes/auth.js`).
+   - Backend uses a tool called `bcrypt` to "hash" the password. It turns
+     "hello123" into "$2a$12$ABCDEF...". We save THAT to the database.
+     We NEVER save real passwords.
+
+2. Logging In (JWT):
+   - User logs in with correct password.
+   - Backend creates a "JSON Web Token" (JWT). Think of this as a digital
+     ID card.
+   - Backend sends the JWT back to the frontend.
+   - Frontend saves the JWT in the browser's "localStorage".
+   - For every future request (like creating a room), the frontend shows
+     this ID card to prove who they are (`server/middleware/auth.js`).
+
+------------------------------------------------------------------------
+STEP 4: FILE UPLOADS (Cloudinary)
+------------------------------------------------------------------------
+We use Cloudinary to store images sent in chat.
+
+1. Setup Cloudinary:
+   - Create a free account at https://cloudinary.com
+   - On the dashboard, copy the "Cloud Name", "API Key", and "API Secret".
+   - Paste these into the `server/.env` file.
+
+2. How it works:
+   - User selects an image in the chat.
+   - Frontend sends the image file to the backend via an API route.
+   - Backend uses a tool called "Multer" to catch the file, and then
+     forwards it straight to your Cloudinary account.
+   - Cloudinary sends back a clean URL (like https://res.cloudinary.com/image.jpg)
+   - We save that URL in the database as a Message, and send it back to the chat.
+
+(Note: If you didn't setup Cloudinary, the app uses "local fallback" and saves
+files to a folder named `server/uploads/` on your computer instead).
+
+------------------------------------------------------------------------
+STEP 4.1: AVATAR SELECTION (DiceBear)
+------------------------------------------------------------------------
+This app now lets users choose an avatar style and seed using the DiceBear API.
+The avatar is generated from a URL like:
+
+  https://api.dicebear.com/7.x/adventurer/svg?seed=username
+
+How it works:
+- The frontend shows several avatar styles: adventurer, pixel-art, bottts,
+  lorelei, thumbs.
+- When the user types a username, changes style, or clicks randomize, the
+  preview updates immediately.
+- On registration, the app saves `avatar`, `avatarStyle`, and `avatarSeed`
+  in MongoDB with the user's account.
+- The backend computes the exact DiceBear URL and stores it in `avatar`.
+- Later, the user can visit the profile page and change the style or seed.
+
+This keeps the avatar system lightweight. There is no file upload for avatars,
+just live generation from the DiceBear URL.
+
+------------------------------------------------------------------------
+STEP 5: REAL-TIME CHAT (Socket.IO)
+------------------------------------------------------------------------
+Normally, a website uses HTTP: You click a link (request), server sends
+a page (response), and the connection closes. 
+
+Chat needs to be INSTANT. If your friend sends a message, you shouldn't
+have to refresh the page to see it.
+
+This is why we use Socket.IO. It creates a permanent "pipeline" (WebSocket)
+between the browser and the server.
+
+The flow in `server/socket/index.js`:
+1. "Rooms": When User A joins room code "X82KLM", Socket.IO puts them in a
+   virtual group for that code.
+2. "Sending": User A types "Hi" and emits a `send-message` event to the server.
+3. "Broadcasting": The server saves the message to MongoDB, and then says:
+   "Hey Socket.IO, send this message to everyone in group X82KLM!"
+4. "Receiving": User B's frontend receives the `message-received` event
+   and instantly shows it on the screen.
+
+We use this same trick for EVERYTHING real-time:
+- "Typing..." indicators
+- Showing who is online
+- The Vote Kick system
+
+------------------------------------------------------------------------
+BUG FIX: ROOM ACTIVITY + FILE DOWNLOAD
+------------------------------------------------------------------------
+Why it broke:
+- File uploads were saved successfully, but the server did not notify the room
+  right away that totalFiles and totalMessages changed.
+- The frontend only listened for the old room activity event and did not
+  update room activity instantly after file uploads.
+- Cloudinary raw uploads were generating a URL based on the stored public ID
+  instead of the original filename, which meant the browser could lose the
+  correct extension when downloading.
+- Download links were missing the `download` attribute, so browsers used
+  random names or the Cloudinary resource name instead of the original file name.
+
+How the fix works:
+- After a successful upload, the backend now emits both `room-activity`
+  and `room_activity_update` with the latest stats.
+- The frontend listens for `room_activity_update` and updates the
+  Room Activity UI immediately.
+- The backend now stores `fileName`, `fileMimeType`, `fileExtension`, and
+  a dedicated `fileDownloadUrl` for attachments.
+- For Cloudinary file uploads, the backend builds a `fl_attachment` download URL
+  so the browser receives the original filename and extension.
+- The file message anchor now uses `download={fileName}` and the
+  `fileDownloadUrl` when available so users get the original filename and
+  extension when downloading shared files.
+
+Debugging notes:
+- Cloudinary stores media using a generated public ID, so the raw access URL
+  does not automatically include the original filename.
+- `fl_attachment` on Cloudinary tells the browser this resource should be
+  downloaded, not opened inline, and it may include the correct filename.
+- The browser's `download` attribute asks the browser to save the file using
+  the given filename when the resource is downloaded.
+
+------------------------------------------------------------------------
+STEP 6: THE FRONTEND STRUCTURE
+------------------------------------------------------------------------
+The React frontend (`client/src/`) is broken down like this:
+
+- `pages/` - Entire screen views (Login, Register, Dashboard, ChatRoom).
+- `components/` - Small reusable pieces (Navbar, Avatar, MessageBubble).
+- `context/` - Shared state. 
+   - AuthContext remembers who is logged in across all pages.
+   - SocketContext keeps ONE socket pipeline open so we don't reconnect constantly.
+
+We use Tailwind CSS for styling (`index.css` & `tailwind.config.js`). It lets
+us use classes like `text-cyber-cyan` or `bg-cyber-card` directly in the HTML
+to create that cool dark neon cyberpunk look without writing huge CSS files.
+
+------------------------------------------------------------------------
+HOW TO RUN THE PROJECT
+------------------------------------------------------------------------
+Open TWO separate terminal windows.
+
+Terminal 1 (Start Backend):
+> cd server
+> npm install
+> npm run dev
+(It should say "CyberChat Server Running on Port 5000")
+
+Terminal 2 (Start Frontend):
+> cd client
+> npm install
+> npm run dev
+(It will give you a link like http://localhost:5173 - click it!)
