@@ -26,10 +26,16 @@ const router = express.Router();
 // ============================================================
 router.get('/download/:id', protect, async (req, res) => {
   try {
+    console.log(`SERVER: 🎯 Route hit confirmation: GET /api/messages/download/${req.params.id}`);
+    console.log(`SERVER: 📄 Requested file ID: ${req.params.id}`);
+    
     const message = await Message.findById(req.params.id);
     if (!message) {
+      console.log(`SERVER: ❌ Message not found for ID: ${req.params.id}`);
       return res.status(404).json({ message: 'Message not found' });
     }
+    
+    console.log(`SERVER: ✅ Found message: ${message._id}`);
 
     if (message.type !== 'file' || !message.fileUrl) {
       return res.status(400).json({ message: 'File download not available' });
@@ -39,12 +45,7 @@ router.get('/download/:id', protect, async (req, res) => {
     const mimeType = message.fileMimeType || 'application/octet-stream';
     const fileUrl = message.fileUrl;
 
-    console.log('📥 Backend download request:', {
-      messageId: message._id,
-      fileName,
-      mimeType,
-      fileUrl,
-    });
+    console.log(`SERVER: 🔗 Generated download URL/Path: ${fileUrl}`);
 
     const safeFileName = encodeURIComponent(fileName).replace(/['()]/g, '');
     const contentDisposition = `attachment; filename="${fileName}"; filename*=UTF-8''${safeFileName}`;

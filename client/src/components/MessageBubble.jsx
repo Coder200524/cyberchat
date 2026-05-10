@@ -8,7 +8,7 @@ const FileMessage = ({ url, messageId, type, fileName }) => {
     // This download is handled by the backend route so the browser does not
     // directly download from Cloudinary. The backend can then stream the file
     // with the correct Content-Type and filename.
-    const apiUrl = `/api/messages/download/${messageId}`;
+    const apiUrl = `${import.meta.env.VITE_API_URL}/api/messages/download/${messageId}`;
     const token = localStorage.getItem('token');
 
     console.log('📥 Download request:', { fileName, apiUrl });
@@ -59,7 +59,7 @@ const FileMessage = ({ url, messageId, type, fileName }) => {
   // Regular File
   return (
     <a 
-      href={`/api/messages/download/${messageId}`}
+      href={`${import.meta.env.VITE_API_URL}/api/messages/download/${messageId}`}
       onClick={handleFileDownload}
       download={fileName}
       className="mt-2 flex items-center gap-3 p-3 bg-cyber-bg rounded border border-white/10 hover:border-cyber-cyan/50 hover:bg-white/5 transition-all w-fit max-w-full"
