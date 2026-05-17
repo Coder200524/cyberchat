@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useSocket } from '../context/SocketContext';
 import api from '../api/axios';
+import { compressImage } from '../utils/imageCompression';
 
 import MessageBubble from '../components/MessageBubble';
 import OnlineUsers from '../components/OnlineUsers';
@@ -179,7 +180,7 @@ const ChatRoomPage = () => {
 
   // --- 6. Handle File Uploads ---
   const handleFileUpload = async (e) => {
-    const file = e.target.files[0];
+    let file = e.target.files[0];
     if (!file || !room) return;
 
     // Reset input
@@ -193,12 +194,25 @@ const ChatRoomPage = () => {
 
     setIsUploading(true);
 
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('roomCode', room.code);
-
     try {
-      const res = await api.post('/messages/upload', formData);
+      // Compress image files before upload (speeds up transmission significantly)
+      if (file.type.startsWith('image/')) {
+        file = await compressImage(file, 1200, 1200, 0.8);
+      }
+
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('roomCode', room.code);
+
+      // Show uploading message with file name
+      const uploadingMsg = `Uploading ${file.name}...`;
+      console.log(uploadingMsg);
+      
+      const res = await api.post('/messages/upload', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
 
       // Broadcast the saved file message via Socket
       socket.emit('file-message', {
@@ -208,7 +222,18 @@ const ChatRoomPage = () => {
 
     } catch (err) {
       console.error('Upload failed', err);
-      setUploadError(err.response?.data?.message || 'File upload failed');
+      
+      // Provide specific error messages
+      if (err.code === 'ECONNABORTED') {
+        setUploadError('Upload timed out. Please try a smaller file.');
+      } else if (err.response?.status === 413) {
+        setUploadError('File is too large. Max size is 10MB.');
+      } else if (err.response?.data?.message) {
+        setUploadError(err.response.data.message);
+      } else {
+        setUploadError('File upload failed. Please try again.');
+      }
+      
       setTimeout(() => setUploadError(''), 5000);
     } finally {
       setIsUploading(false);
@@ -235,9 +260,9 @@ const ChatRoomPage = () => {
       <div className="flex-1 flex flex-col bg-cyber-bg min-w-0">
         
         {/* Chat Header */}
-        <div className="h-16 border-b border-white/10 bg-cyber-card/50 flex items-center justify-between px-6 shrink-0">
-          <div className="flex items-center gap-4">
-            <h2 className="font-orbitron font-bold text-lg text-white truncate max-w-[200px] md:max-w-md">
+        <div className="h-14 md:h-16 border-b border-white/10 bg-cyber-card/50 flex items-center justify-between px-3 sm:px-6 shrink-0">
+          <div className="flex items-center gap-2 sm:gap-4">
+            <h2 className="font-orbitron font-bold text-sm sm:text-lg text-white truncate max-w-[150px] sm:max-w-[200px] md:max-w-md">
               {room.name}
             </h2>
             <div className="hidden sm:block">
@@ -247,10 +272,10 @@ const ChatRoomPage = () => {
           
           <button 
             onClick={() => navigate('/dashboard')}
-            className="text-gray-400 hover:text-red-500 font-inter text-sm flex items-center gap-2 transition-colors border border-transparent hover:border-red-500/30 px-3 py-1.5 rounded"
+            className="text-gray-400 hover:text-red-500 font-inter text-xs sm:text-sm flex items-center gap-1 sm:gap-2 transition-colors border border-transparent hover:border-red-500/30 px-2 sm:px-3 py-1.5 rounded"
           >
             <span className="hidden sm:inline">DISCONNECT</span>
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 sm:h-5 sm:w-5" viewBox="0 0 20 20" fill="currentColor">
               <path fillRule="evenodd" d="M3 3a1 1 0 00-1 1v12a1 1 0 102 0V4a1 1 0 00-1-1zm10.293 9.293a1 1 0 001.414 1.414l3-3a1 1 0 000-1.414l-3-3a1 1 0 10-1.414 1.414L14.586 9H7a1 1 0 100 2h7.586l-1.293 1.293z" clipRule="evenodd" />
             </svg>
           </button>
@@ -262,7 +287,7 @@ const ChatRoomPage = () => {
         </div>
 
         {/* Messages List */}
-        <div className="flex-1 overflow-y-auto custom-scrollbar p-4 flex flex-col">
+        <div className="flex-1 overflow-y-auto custom-scrollbar p-2 sm:p-4 flex flex-col">
           {messages.length === 0 ? (
             <div className="m-auto text-center text-gray-500 font-inter italic space-y-2">
               <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 mx-auto opacity-20" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -287,19 +312,19 @@ const ChatRoomPage = () => {
         </div>
 
         {/* Input Area */}
-        <div className="p-4 bg-cyber-card/80 border-t border-white/10 shrink-0">
+        <div className="p-2 sm:p-4 bg-cyber-card/80 border-t border-white/10 shrink-0">
           
           {uploadError && (
              <div className="text-red-400 text-xs mb-2 font-inter">{uploadError}</div>
           )}
           
-          <form onSubmit={handleSendMessage} className="flex gap-2 relative">
+          <form onSubmit={handleSendMessage} className="flex gap-1 sm:gap-2 relative">
             
             <button 
               type="button"
               onClick={() => fileInputRef.current?.click()}
               disabled={isUploading}
-              className={`p-3 rounded bg-cyber-bg border border-white/10 text-gray-400 hover:text-cyber-purple hover:border-cyber-purple transition-colors ${isUploading ? 'opacity-50 cursor-not-allowed' : ''}`}
+              className={`p-2 sm:p-3 rounded bg-cyber-bg border border-white/10 text-gray-400 hover:text-cyber-purple hover:border-cyber-purple transition-colors ${isUploading ? 'opacity-50 cursor-not-allowed' : ''}`}
               title="Upload File"
             >
               {isUploading ? (
@@ -316,13 +341,12 @@ const ChatRoomPage = () => {
               className="hidden" 
               ref={fileInputRef} 
               onChange={handleFileUpload}
-              accept=".jpg,.jpeg,.png,.gif,.webp,.pdf,.txt,.zip"
             />
 
             <input
               type="text"
-              className="flex-1 input-cyber font-inter"
-              placeholder="Transmit message..."
+              className="flex-1 input-cyber font-inter text-sm"
+              placeholder="Message..."
               value={newMessage}
               onChange={handleTyping}
             />
@@ -330,7 +354,7 @@ const ChatRoomPage = () => {
             <button 
               type="submit"
               disabled={!newMessage.trim()}
-              className="btn-cyber-cyan px-4 py-2 flex items-center justify-center disabled:opacity-50"
+              className="btn-cyber-cyan px-2 sm:px-4 py-2 flex items-center justify-center disabled:opacity-50"
             >
               <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 transform rotate-90" viewBox="0 0 20 20" fill="currentColor">
                 <path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z" />
@@ -341,12 +365,12 @@ const ChatRoomPage = () => {
       </div>
 
       {/* Right Sidebar (Users & Activity) */}
-      <div className="w-full md:w-80 border-l border-white/10 bg-cyber-bg flex flex-col shrink-0 overflow-y-auto">
-        <div className="p-4 flex-1 flex flex-col gap-4 min-h-0">
-          <div className="flex-1 min-h-[200px]">
+      <div className="w-full md:w-72 border-t md:border-t-0 md:border-l border-white/10 bg-cyber-bg flex flex-col shrink-0 overflow-y-auto">
+        <div className="p-2 sm:p-3 flex-1 flex flex-col gap-1 min-h-0">
+          <div className="flex-1 min-h-[120px] md:min-h-[200px]">
              <OnlineUsers users={onlineUsers} roomCode={room?.code} />
           </div>
-          <div className="shrink-0">
+          <div className="shrink-0 pt-1">
              <RoomActivity stats={roomStats} />
           </div>
         </div>

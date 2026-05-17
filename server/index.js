@@ -40,12 +40,13 @@ const allowedOrigins = [
   'http://127.0.0.1:5173',
   'http://127.0.0.1:5174',
   'http://127.0.0.1:5175',
+  'https://cyberchat-snowy.vercel.app',
 ].filter(Boolean);
 
 // ---- Create Socket.IO Server ----
 const io = new Server(server, {
   cors: {
-    origin: "https://cyberchat-snowy.vercel.app",
+    origin: allowedOrigins,
     methods: ["GET", "POST"],
     credentials: true,
   },
@@ -58,7 +59,7 @@ app.set('io', io);
 // ---- Middleware ----
 app.use(
   cors({
-    origin: "https://cyberchat-snowy.vercel.app",
+    origin: allowedOrigins,
     credentials: true
   })
 );

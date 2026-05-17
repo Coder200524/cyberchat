@@ -99,6 +99,17 @@ const setupSocket = (io) => {
           console.log(`⏰ Self-destruct timer cancelled for room ${roomCode}`);
         }
 
+        // Update lastActivity in MongoDB when user joins
+        try {
+          const room = await Room.findOne({ code: roomCode });
+          if (room) {
+            room.lastActivity = new Date(); // 🕐 Track activity
+            await room.save();
+          }
+        } catch (dbError) {
+          console.error('Error updating room lastActivity:', dbError);
+        }
+
         // Save which room this socket is in (needed for disconnect cleanup)
         socket.roomCode = roomCode;
         socket.userId = userId;
@@ -150,7 +161,7 @@ const setupSocket = (io) => {
 
         // Update room stats and last activity
         room.totalMessages += 1;
-        room.lastActivity = new Date();
+        room.lastActivity = new Date(); // 🕐 Track activity
         await room.save();
 
         // Build the message object to send to all users in the room
@@ -185,9 +196,20 @@ const setupSocket = (io) => {
     // The REST route saves to DB, then frontend emits this
     // to broadcast the file message in real-time
     // ========================================================
-    socket.on('file-message', ({ roomCode, messageData }) => {
-      // Broadcast the already-saved file message to everyone
-      io.to(roomCode).emit('message-received', messageData);
+    socket.on('file-message', async ({ roomCode, messageData }) => {
+      try {
+        // Update lastActivity for the room when file is shared
+        const room = await Room.findOne({ code: roomCode });
+        if (room) {
+          room.lastActivity = new Date(); // 🕐 Track activity
+          await room.save();
+        }
+        
+        // Broadcast the already-saved file message to everyone
+        io.to(roomCode).emit('message-received', messageData);
+      } catch (error) {
+        console.error('file-message error:', error);
+      }
     });
 
     // ========================================================
